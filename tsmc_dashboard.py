@@ -238,7 +238,14 @@ with st.spinner(t["loading"]):
     progress.empty()
 
 if not inst_list:
-    st.error(t["no_data"])
+    # 診斷模式：直接顯示 API 回應
+    import traceback
+    try:
+        url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={trading_dates[-1]}&selectType=ALLBUT0999&response=json"
+        res = requests.get(url, timeout=10, verify=False)
+        st.error(f"API stat: {res.json().get('stat')} | HTTP: {res.status_code}")
+    except Exception as e:
+        st.error(f"連線失敗: {e}")
     st.stop()
 
 inst_df = pd.DataFrame(inst_list)
