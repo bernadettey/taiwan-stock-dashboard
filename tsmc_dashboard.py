@@ -24,7 +24,7 @@ st.set_page_config(
 
 @st.cache_data(ttl=3600)
 def get_institutional_investors(date_str):
-    url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALLBUT0999&response=json"
+    url = f"http://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALLBUT0999&response=json"
     try:
         res = requests.get(url, timeout=10)
         data = res.json()
@@ -48,7 +48,7 @@ def get_institutional_investors(date_str):
 
 @st.cache_data(ttl=3600)
 def get_margin_trading(date_str):
-    url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
+    url = f"http://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
     try:
         res = requests.get(url, timeout=10)
         data = res.json()
@@ -89,7 +89,7 @@ def get_margin_trading(date_str):
 
 @st.cache_data(ttl=3600)
 def get_foreign_holding(date_str):
-    url = f"https://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={date_str}&selectType=ALLBUT0999&response=json"
+    url = f"http://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={date_str}&selectType=ALLBUT0999&response=json"
     try:
         res = requests.get(url, timeout=10)
         data = res.json()
