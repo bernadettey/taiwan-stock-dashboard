@@ -115,6 +115,9 @@ def get_foreign_holding(date_str):
 def get_trading_dates(days):
     dates = []
     d = datetime.today()
+    # 若今天是週末，從上週五開始往回數
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
     while len(dates) < days:
         if d.weekday() < 5:
             dates.append(d.strftime("%Y%m%d"))
@@ -155,7 +158,7 @@ with st.spinner("載入資料中..."):
     progress.empty()
 
 if not inst_list:
-    st.error("無法取得資料，可能為假日或資料尚未更新，請稍後再試。")
+    st.error("無法取得資料，TWSE 資料尚未更新，請明天再試。")
     st.stop()
 
 inst_df = pd.DataFrame(inst_list)
