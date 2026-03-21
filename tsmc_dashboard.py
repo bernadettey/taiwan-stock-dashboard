@@ -104,6 +104,7 @@ def get_institutional_investors(date_str):
         res = requests.get(url, timeout=10, verify=False)
         data = res.json()
         if data.get("stat") != "OK":
+            print(f"[{date_str}] stat={data.get('stat')}, msg={data.get('msg','')}")
             return None
         df = pd.DataFrame(data["data"], columns=data["fields"])
         df = df[df["證券代號"] == STOCK_ID]
@@ -117,7 +118,8 @@ def get_institutional_investors(date_str):
             "dealer_net": int(row["自營商買賣超股數"].replace(",", "")) / 1000,
             "total_net": int(row["三大法人買賣超股數"].replace(",", "")) / 1000,
         }
-    except:
+    except Exception as e:
+        print(f"[{date_str}] 三大法人錯誤: {e}")
         return None
 
 
