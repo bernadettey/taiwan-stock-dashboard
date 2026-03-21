@@ -243,7 +243,7 @@ if not inst_list:
     try:
         url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={trading_dates[-1]}&selectType=ALLBUT0999&response=json"
         res = requests.get(url, timeout=10, verify=False)
-        st.error(f"API stat: {res.json().get('stat')} | HTTP: {res.status_code}")
+        st.error(f"HTTP {res.status_code} | 回應內容: {res.text[:300]}")
     except Exception as e:
         st.error(f"連線失敗: {e}")
     st.stop()
