@@ -10,7 +10,11 @@ from plotly.subplots import make_subplots
 import streamlit as st
 from datetime import datetime, timedelta
 import warnings
+import urllib3
 warnings.filterwarnings('ignore')
+# TWSE 憑證缺少 Subject Key Identifier，為已知政府網站憑證問題
+# 資料為公開市場資料，僅針對 TWSE domain 停用 SSL 驗證
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 STOCK_ID = "2330"
 
@@ -26,7 +30,7 @@ st.set_page_config(
 def get_institutional_investors(date_str):
     url = f"http://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALLBUT0999&response=json"
     try:
-        res = requests.get(url, timeout=10)
+        res = requests.get(url, timeout=10, verify=False)
         data = res.json()
         if data.get("stat") != "OK":
             return None
@@ -50,7 +54,7 @@ def get_institutional_investors(date_str):
 def get_margin_trading(date_str):
     url = f"http://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
     try:
-        res = requests.get(url, timeout=10)
+        res = requests.get(url, timeout=10, verify=False)
         data = res.json()
         if data.get("stat") != "OK":
             return None
@@ -91,7 +95,7 @@ def get_margin_trading(date_str):
 def get_foreign_holding(date_str):
     url = f"http://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={date_str}&selectType=ALLBUT0999&response=json"
     try:
-        res = requests.get(url, timeout=10)
+        res = requests.get(url, timeout=10, verify=False)
         data = res.json()
         if data.get("stat") != "OK":
             return None
