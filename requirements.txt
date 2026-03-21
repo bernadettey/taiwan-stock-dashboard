@@ -2,4 +2,3 @@ streamlit
 plotly
 requests
 pandas
-FinMind==1.4.5
