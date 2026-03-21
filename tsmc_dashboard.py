@@ -1,29 +1,19 @@
 """
 TSMC (2330) 籌碼分析 Streamlit Dashboard
+資料來源：FinMind API (https://finmindtrade.com)
 """
 
 import requests
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
 import streamlit as st
 from datetime import datetime, timedelta
 import warnings
-import urllib3
 warnings.filterwarnings('ignore')
-# TWSE 憑證缺少 Subject Key Identifier，為已知政府網站憑證問題
-# 資料為公開市場資料，僅針對 TWSE domain 停用 SSL 驗證
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 STOCK_ID = "2330"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Referer": "https://www.twse.com.tw/zh/trading/fund/T86.html",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
-}
+FINMIND_URL = "https://api.finmindtrade.com/api/v4/data"
 
 st.set_page_config(
     page_title="TSMC Chip Analysis",
@@ -36,13 +26,12 @@ st.set_page_config(
 LANG = {
     "zh": {
         "title": "📊 TSMC (2330) 籌碼分析儀表板",
-        "caption": "資料來源：台灣證券交易所 (TWSE)",
+        "caption": "資料來源：FinMind API",
         "settings": "⚙️ 設定",
-        "language": "語言",
         "days_label": "查詢天數（交易日）",
         "reload": "🔄 重新載入資料",
         "loading": "載入資料中...",
-        "no_data": "無法取得資料，TWSE 資料尚未更新，請明天再試。",
+        "no_data": "無法取得資料，請稍後再試。",
         "summary": "籌碼摘要",
         "foreign": "外資",
         "trust": "投信",
@@ -69,13 +58,12 @@ LANG = {
     },
     "en": {
         "title": "📊 TSMC (2330) Chip Flow Dashboard",
-        "caption": "Data source: Taiwan Stock Exchange (TWSE)",
+        "caption": "Data source: FinMind API",
         "settings": "⚙️ Settings",
-        "language": "Language",
         "days_label": "Trading Days",
         "reload": "🔄 Reload Data",
         "loading": "Loading data...",
-        "no_data": "No data available. TWSE may not have published data yet. Please try again tomorrow.",
+        "no_data": "Unable to fetch data. Please try again later.",
         "summary": "Weekly Summary",
         "foreign": "Foreign",
         "trust": "Investment Trust",
@@ -102,115 +90,98 @@ LANG = {
     }
 }
 
-# ── 資料抓取函數 ──────────────────────────────────────────
+# ── 資料抓取函數（每種只打 1 次 API）────────────────────────
+
+def get_start_date(days):
+    d = datetime.today() - timedelta(days=days + 14)
+    return d.strftime("%Y-%m-%d")
+
 
 @st.cache_data(ttl=3600)
-def get_institutional_investors(date_str):
-    url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALLBUT0999&response=json"
+def get_institutional_investors(start_date):
     try:
-        res = requests.get(url, timeout=10, verify=False, headers=HEADERS)
+        res = requests.get(FINMIND_URL, params={
+            "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
+            "data_id": STOCK_ID,
+            "start_date": start_date,
+        }, timeout=15)
         data = res.json()
-        if data.get("stat") != "OK":
-            print(f"[{date_str}] stat={data.get('stat')}, msg={data.get('msg','')}")
-            return None
-        df = pd.DataFrame(data["data"], columns=data["fields"])
-        df = df[df["證券代號"] == STOCK_ID]
-        if df.empty:
-            return None
-        row = df.iloc[0]
-        return {
-            "date": date_str,
-            "foreign_net": int(row["外陸資買賣超股數(不含外資自營商)"].replace(",", "")) / 1000,
-            "trust_net": int(row["投信買賣超股數"].replace(",", "")) / 1000,
-            "dealer_net": int(row["自營商買賣超股數"].replace(",", "")) / 1000,
-            "total_net": int(row["三大法人買賣超股數"].replace(",", "")) / 1000,
-        }
+        if data.get("status") != 200 or not data.get("data"):
+            return pd.DataFrame()
+        df = pd.DataFrame(data["data"])
+        df["date"] = pd.to_datetime(df["date"])
+        df["net"] = (df["buy"].astype(float) - df["sell"].astype(float)) / 1000
+
+        name_map = {"外資": "foreign", "投信": "trust", "自營商(自行買賣)": "dealer", "自營商": "dealer"}
+        result = {}
+        for _, row in df.iterrows():
+            d = row["date"]
+            col = name_map.get(row.get("name", ""))
+            if col is None:
+                continue
+            if d not in result:
+                result[d] = {"date": d, "foreign_net": 0.0, "trust_net": 0.0, "dealer_net": 0.0}
+            result[d][f"{col}_net"] += row["net"]
+
+        out = pd.DataFrame(list(result.values())).sort_values("date").reset_index(drop=True)
+        out["total_net"] = out["foreign_net"] + out["trust_net"] + out["dealer_net"]
+        out["date_label"] = out["date"].dt.strftime("%m/%d")
+        return out
     except Exception as e:
-        print(f"[{date_str}] 三大法人錯誤: {e}")
-        return None
+        print(f"三大法人錯誤: {e}")
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=3600)
-def get_margin_trading(date_str):
-    url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
+def get_margin_trading(start_date):
     try:
-        res = requests.get(url, timeout=10, verify=False, headers=HEADERS)
+        res = requests.get(FINMIND_URL, params={
+            "dataset": "TaiwanStockMarginPurchaseShortSale",
+            "data_id": STOCK_ID,
+            "start_date": start_date,
+        }, timeout=15)
         data = res.json()
-        if data.get("stat") != "OK":
-            return None
-        margin_bal, short_bal, margin_chg, short_chg = None, None, None, None
-        for table_key, fields_key in [("data", "fields"), ("data2", "fields2")]:
-            if table_key not in data:
-                continue
-            cols = data.get(fields_key, [])
-            df = pd.DataFrame(data[table_key], columns=cols)
-            col_name = [c for c in df.columns if "代號" in c or "代碼" in c]
-            if not col_name:
-                continue
-            df = df[df[col_name[0]].str.strip() == STOCK_ID]
-            if df.empty:
-                continue
-            row = df.iloc[0]
-            vals = [str(v).replace(",", "") for v in row.values]
-            if table_key == "data":
-                margin_bal = int(vals[4])
-                margin_chg = int(vals[3])
-            else:
-                short_bal = int(vals[4])
-                short_chg = int(vals[3])
-        if margin_bal is None and short_bal is None:
-            return None
-        return {
-            "date": date_str,
-            "margin_balance": margin_bal or 0,
-            "margin_change": margin_chg or 0,
-            "short_balance": short_bal or 0,
-            "short_change": short_chg or 0,
-        }
-    except:
-        return None
+        if data.get("status") != 200 or not data.get("data"):
+            return pd.DataFrame()
+        df = pd.DataFrame(data["data"])
+        df["date"] = pd.to_datetime(df["date"])
+        df["margin_balance"] = df["MarginPurchaseTodayBalance"].astype(float) / 1000
+        df["margin_change"] = (df["MarginPurchaseBuy"].astype(float) - df["MarginPurchaseSell"].astype(float)) / 1000
+        df["short_balance"] = df["ShortSaleTodayBalance"].astype(float) / 1000
+        df["short_change"] = (df["ShortSaleBuy"].astype(float) - df["ShortSaleSell"].astype(float)) / 1000
+        df["date_label"] = df["date"].dt.strftime("%m/%d")
+        return df.sort_values("date").reset_index(drop=True)
+    except Exception as e:
+        print(f"融資融券錯誤: {e}")
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=3600)
-def get_foreign_holding(date_str):
-    url = f"https://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={date_str}&selectType=ALLBUT0999&response=json"
+def get_foreign_holding(start_date):
     try:
-        res = requests.get(url, timeout=10, verify=False, headers=HEADERS)
+        res = requests.get(FINMIND_URL, params={
+            "dataset": "TaiwanStockShareholding",
+            "data_id": STOCK_ID,
+            "start_date": start_date,
+        }, timeout=15)
         data = res.json()
-        if data.get("stat") != "OK":
-            return None
-        df = pd.DataFrame(data["data"], columns=data["fields"])
-        code_col = [c for c in df.columns if "代號" in c or "代碼" in c]
-        if not code_col:
-            return None
-        df = df[df[code_col[0]].str.strip() == STOCK_ID]
-        if df.empty:
-            return None
-        row = df.iloc[0]
-        ratio_col = [c for c in df.columns if "%" in c or "比率" in c or "比例" in c]
-        if not ratio_col:
-            return None
-        ratio = float(str(row[ratio_col[0]]).replace(",", "").replace("%", ""))
-        return {"date": date_str, "foreign_ratio": ratio}
-    except:
-        return None
-
-
-def get_trading_dates(days):
-    dates = []
-    d = datetime.today()
-    while d.weekday() >= 5:
-        d -= timedelta(days=1)
-    while len(dates) < days:
-        if d.weekday() < 5:
-            dates.append(d.strftime("%Y%m%d"))
-        d -= timedelta(days=1)
-    return dates[::-1]
+        if data.get("status") != 200 or not data.get("data"):
+            return pd.DataFrame()
+        df = pd.DataFrame(data["data"])
+        df["date"] = pd.to_datetime(df["date"])
+        df["foreign_ratio"] = (
+            df["ForeignInvestmentRemainingShares"].astype(float) /
+            df["NumberOfSharesIssued"].astype(float) * 100
+        )
+        df["date_label"] = df["date"].dt.strftime("%m/%d")
+        return df.sort_values("date").reset_index(drop=True)
+    except Exception as e:
+        print(f"外資持股錯誤: {e}")
+        return pd.DataFrame()
 
 
 # ── UI ────────────────────────────────────────────────────
 
-# 側邊欄
 with st.sidebar:
     lang_choice = st.radio("Language / 語言", ["中文", "English"], horizontal=True)
     lang = "zh" if lang_choice == "中文" else "en"
@@ -225,39 +196,22 @@ with st.sidebar:
 st.title(t["title"])
 st.caption(f"{t['caption']}　｜　{datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-# 載入資料
-trading_dates = get_trading_dates(days)
+start_date = get_start_date(days)
 
 with st.spinner(t["loading"]):
-    inst_list, margin_list, foreign_list = [], [], []
-    progress = st.progress(0)
-    for i, date in enumerate(trading_dates):
-        r = get_institutional_investors(date)
-        if r:
-            inst_list.append(r)
-        r = get_margin_trading(date)
-        if r:
-            margin_list.append(r)
-        r = get_foreign_holding(date)
-        if r:
-            foreign_list.append(r)
-        progress.progress((i + 1) / len(trading_dates))
-    progress.empty()
+    inst_df = get_institutional_investors(start_date)
+    margin_df = get_margin_trading(start_date)
+    foreign_df = get_foreign_holding(start_date)
 
-if not inst_list:
-    # 診斷模式：直接顯示 API 回應
-    import traceback
-    try:
-        url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={trading_dates[-1]}&selectType=ALLBUT0999&response=json"
-        res = requests.get(url, timeout=10, verify=False, headers=HEADERS)
-        st.error(f"HTTP {res.status_code} | 回應內容: {res.text[:300]}")
-    except Exception as e:
-        st.error(f"連線失敗: {e}")
+if inst_df.empty:
+    st.error(t["no_data"])
     st.stop()
 
-inst_df = pd.DataFrame(inst_list)
-inst_df["date_dt"] = pd.to_datetime(inst_df["date"], format="%Y%m%d")
-inst_df["date_label"] = inst_df["date_dt"].dt.strftime("%m/%d")
+inst_df = inst_df.tail(days).reset_index(drop=True)
+if not margin_df.empty:
+    margin_df = margin_df.tail(days).reset_index(drop=True)
+if not foreign_df.empty:
+    foreign_df = foreign_df.tail(days).reset_index(drop=True)
 
 # ── KPI 卡片 ───────────────────────────────────────────────
 st.subheader(t["summary"])
@@ -308,8 +262,8 @@ with col_right:
     st.plotly_chart(fig2, use_container_width=True)
 
 # ── 圖3 + 圖4 ─────────────────────────────────────────────
-has_margin = len(margin_list) > 0
-has_foreign = len(foreign_list) > 0
+has_margin = not margin_df.empty
+has_foreign = not foreign_df.empty
 
 if has_margin or has_foreign:
     col_left2, col_right2 = st.columns(2)
@@ -317,10 +271,6 @@ if has_margin or has_foreign:
     with col_left2:
         st.subheader(t["chart3_title"])
         if has_margin:
-            margin_df = pd.DataFrame(margin_list)
-            margin_df["date_dt"] = pd.to_datetime(margin_df["date"], format="%Y%m%d")
-            margin_df["date_label"] = margin_df["date_dt"].dt.strftime("%m/%d")
-
             fig3 = make_subplots(specs=[[{"secondary_y": True}]])
             fig3.add_trace(go.Bar(name=t["margin_bal"], x=margin_df["date_label"],
                                   y=margin_df["margin_balance"], marker_color="#FF7043",
@@ -344,10 +294,6 @@ if has_margin or has_foreign:
     with col_right2:
         st.subheader(t["chart4_title"])
         if has_foreign:
-            foreign_df = pd.DataFrame(foreign_list)
-            foreign_df["date_dt"] = pd.to_datetime(foreign_df["date"], format="%Y%m%d")
-            foreign_df["date_label"] = foreign_df["date_dt"].dt.strftime("%m/%d")
-
             fig4 = go.Figure()
             fig4.add_trace(go.Scatter(
                 x=foreign_df["date_label"], y=foreign_df["foreign_ratio"],
