@@ -112,7 +112,12 @@ def get_institutional_investors(start_date):
         df["date"] = pd.to_datetime(df["date"])
         df["net"] = (df["buy"].astype(float) - df["sell"].astype(float)) / 1000
 
-        name_map = {"外資": "foreign", "投信": "trust", "自營商(自行買賣)": "dealer", "自營商": "dealer"}
+        name_map = {
+            "Foreign_Investor": "foreign",
+            "Investment_Trust": "trust",
+            "Dealer_self": "dealer",
+            "Dealer_Hedging": "dealer",
+        }
         result = {}
         for _, row in df.iterrows():
             d = row["date"]
