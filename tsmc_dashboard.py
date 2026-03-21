@@ -18,6 +18,13 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 STOCK_ID = "2330"
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://www.twse.com.tw/zh/trading/fund/T86.html",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+}
+
 st.set_page_config(
     page_title="TSMC Chip Analysis",
     page_icon="📊",
@@ -101,7 +108,7 @@ LANG = {
 def get_institutional_investors(date_str):
     url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALLBUT0999&response=json"
     try:
-        res = requests.get(url, timeout=10, verify=False)
+        res = requests.get(url, timeout=10, verify=False, headers=HEADERS)
         data = res.json()
         if data.get("stat") != "OK":
             print(f"[{date_str}] stat={data.get('stat')}, msg={data.get('msg','')}")
@@ -127,7 +134,7 @@ def get_institutional_investors(date_str):
 def get_margin_trading(date_str):
     url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
     try:
-        res = requests.get(url, timeout=10, verify=False)
+        res = requests.get(url, timeout=10, verify=False, headers=HEADERS)
         data = res.json()
         if data.get("stat") != "OK":
             return None
@@ -168,7 +175,7 @@ def get_margin_trading(date_str):
 def get_foreign_holding(date_str):
     url = f"https://www.twse.com.tw/rwd/zh/fund/MI_QFIIS?date={date_str}&selectType=ALLBUT0999&response=json"
     try:
-        res = requests.get(url, timeout=10, verify=False)
+        res = requests.get(url, timeout=10, verify=False, headers=HEADERS)
         data = res.json()
         if data.get("stat") != "OK":
             return None
@@ -242,7 +249,7 @@ if not inst_list:
     import traceback
     try:
         url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={trading_dates[-1]}&selectType=ALLBUT0999&response=json"
-        res = requests.get(url, timeout=10, verify=False)
+        res = requests.get(url, timeout=10, verify=False, headers=HEADERS)
         st.error(f"HTTP {res.status_code} | 回應內容: {res.text[:300]}")
     except Exception as e:
         st.error(f"連線失敗: {e}")
