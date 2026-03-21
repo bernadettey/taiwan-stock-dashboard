@@ -15,7 +15,7 @@ warnings.filterwarnings('ignore')
 FINMIND_URL = "https://api.finmindtrade.com/api/v4/data"
 
 st.set_page_config(
-    page_title="台股籌碼分析",
+    page_title="台股籌碼分析儀表板",
     page_icon="📊",
     layout="wide"
 )
