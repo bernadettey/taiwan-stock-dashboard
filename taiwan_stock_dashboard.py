@@ -13,6 +13,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 FINMIND_URL = "https://api.finmindtrade.com/api/v4/data"
+FINMIND_TOKEN = st.secrets.get("FINMIND_TOKEN", "")
 
 st.set_page_config(
     page_title="台股籌碼分析儀表板",
@@ -112,11 +113,14 @@ def get_start_date(days):
 @st.cache_data(ttl=3600)
 def fetch(dataset, stock_id, start_date):
     try:
-        res = requests.get(FINMIND_URL, params={
+        params = {
             "dataset": dataset,
             "data_id": stock_id,
             "start_date": start_date,
-        }, timeout=15)
+        }
+        if FINMIND_TOKEN:
+            params["token"] = FINMIND_TOKEN
+        res = requests.get(FINMIND_URL, params=params, timeout=15)
         data = res.json()
         if data.get("status") != 200 or not data.get("data"):
             return pd.DataFrame()
