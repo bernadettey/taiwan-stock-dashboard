@@ -223,14 +223,25 @@ st.title(t["title"])
 st.caption(f"{t['caption']}　｜　股票代號：**{stock_id}**　｜　{datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
 start_date = get_start_date(days)
+cache_key = f"{stock_id}_{days}"
 
-with st.spinner(t["loading"]):
-    inst_df = get_institutional(stock_id, start_date)
-    price_df = get_price(stock_id, start_date)
-    margin_df = get_margin(stock_id, start_date)
-    foreign_df = get_foreign_holding(stock_id, start_date)
-    per_df = get_per(stock_id, start_date)
-    news_df = get_news(stock_id, start_date)
+# 用 session_state 避免同一 session 重複打 API
+if "cache_key" not in st.session_state or st.session_state["cache_key"] != cache_key:
+    with st.spinner(t["loading"]):
+        st.session_state["inst_df"] = get_institutional(stock_id, start_date)
+        st.session_state["price_df"] = get_price(stock_id, start_date)
+        st.session_state["margin_df"] = get_margin(stock_id, start_date)
+        st.session_state["foreign_df"] = get_foreign_holding(stock_id, start_date)
+        st.session_state["per_df"] = get_per(stock_id, start_date)
+        st.session_state["news_df"] = get_news(stock_id, start_date)
+        st.session_state["cache_key"] = cache_key
+
+inst_df = st.session_state["inst_df"]
+price_df = st.session_state["price_df"]
+margin_df = st.session_state["margin_df"]
+foreign_df = st.session_state["foreign_df"]
+per_df = st.session_state["per_df"]
+news_df = st.session_state["news_df"]
 
 if inst_df.empty and price_df.empty:
     st.error(t["no_data"])
