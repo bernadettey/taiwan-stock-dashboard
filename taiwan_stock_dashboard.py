@@ -234,7 +234,13 @@ with st.spinner(t["loading"]):
 
 if inst_df.empty and price_df.empty:
     st.error(t["no_data"])
+    st.warning("FinMind API 可能達到請求上限，請點左側「🔄 重新載入資料」或稍後再試。")
     st.stop()
+
+if inst_df.empty:
+    st.warning("三大法人資料暫時無法取得，其他資料仍可查看。")
+if price_df.empty:
+    st.warning("股價資料暫時無法取得，其他資料仍可查看。")
 
 # 截取最近 N 天
 def tail_df(df, n):
