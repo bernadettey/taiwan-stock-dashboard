@@ -13,7 +13,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 FINMIND_URL = "https://api.finmindtrade.com/api/v4/data"
-FINMIND_TOKEN = st.secrets.get("FINMIND_TOKEN", "")
 
 st.set_page_config(
     page_title="台股籌碼分析儀表板",
@@ -103,6 +102,8 @@ LANG = {
         "no_per": "PER/PBR data unavailable",
     }
 }
+
+FINMIND_TOKEN = st.secrets.get("FINMIND_TOKEN", "")
 
 # ── 資料抓取函數 ──────────────────────────────────────────
 
